@@ -18,6 +18,28 @@ type ContextType =
 
 const AccountDataContext = createContext<ContextType>(undefined);
 
+const loadAccountData = (
+  accountRulesContract: AccountRules | undefined,
+  setAccountWhitelist: (accounts: Account[]) => void,
+  setAccountReadOnly: (readOnly?: boolean) => void
+) => {
+  if (accountRulesContract === undefined) {
+    setAccountWhitelist([]);
+    setAccountReadOnly(undefined);
+  } else {
+    accountRulesContract.functions.isReadOnly().then(isReadOnly => setAccountReadOnly(isReadOnly));
+    accountRulesContract.functions.getSize().then(whitelistSize => {
+      const whitelistElementsPromises = [];
+      for (let i = 0; whitelistSize.gt(i); i++) {
+        whitelistElementsPromises.push(accountRulesContract.functions.getByIndex(i));
+      }
+      Promise.all(whitelistElementsPromises).then(responses => {
+        setAccountWhitelist(responses.map(address => ({ address })));
+      });
+    });
+  }
+};
+
 /**
  * Provider for the data context that contains the account whitelist
  * @param {Object} props Props given to the AccountDataProvider
@@ -81,21 +103,7 @@ export const useAccountData = () => {
   const { accountWhitelist, setAccountWhitelist, accountReadOnly, setAccountReadOnly, accountRulesContract } = context;
 
   useEffect(() => {
-    if (accountRulesContract === undefined) {
-      setAccountWhitelist([]);
-      setAccountReadOnly(undefined);
-    } else {
-      accountRulesContract.functions.isReadOnly().then(isReadOnly => setAccountReadOnly(isReadOnly));
-      accountRulesContract.functions.getSize().then(whitelistSize => {
-        const whitelistElementsPromises = [];
-        for (let i = 0; whitelistSize.gt(i); i++) {
-          whitelistElementsPromises.push(accountRulesContract.functions.getByIndex(i));
-        }
-        Promise.all(whitelistElementsPromises).then(responses => {
-          setAccountWhitelist(responses.map(address => ({ address })));
-        });
-      });
-    }
+    loadAccountData(accountRulesContract, setAccountWhitelist, setAccountReadOnly);
   }, [accountRulesContract, setAccountWhitelist, setAccountReadOnly]);
 
   const formattedAccountWhitelist = useMemo(() => {
